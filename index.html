@@ -5,38 +5,65 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>リハビリテーション予約システム</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; margin: 0; padding: 20px; }
-        .container { max-width: 1200px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h1 { text-align: center; color: #0056b3; }
-        .controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
-        .control-group { display: flex; align-items: center; gap: 10px; }
-        label { font-weight: bold; }
-        select, input, button { padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 16px; }
+        /* 全体・モバイル対応の基本設定 */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; margin: 0; padding: 10px; }
+        .container { max-width: 1200px; margin: auto; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #0056b3; font-size: 1.5em; margin-bottom: 15px; }
+        
+        /* 操作パネルの調整 */
+        .controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
+        .control-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        label { font-weight: bold; font-size: 0.9em; }
+        select, input, button { padding: 8px; border-radius: 5px; border: 1px solid #ccc; font-size: 0.9em; flex-grow: 1; min-width: 100px;}
         input[type="date"] { position: relative; }
         button { background-color: #007bff; color: white; cursor: pointer; border: none; }
         button:hover { background-color: #0056b3; }
-        #booking-table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; }
-        #booking-table th, #booking-table td { border: 1px solid #ddd; padding: 12px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+
+        /* 予約テーブルの調整 */
+        #booking-table { width: 100%; border-collapse: collapse; margin-top: 15px; table-layout: fixed; }
+        #booking-table th, #booking-table td { 
+            border: 1px solid #ddd; padding: 8px 4px; /* パディングを減らす */
+            text-align: center; 
+            font-size: 0.8em; /* フォントサイズを小さく */
+            word-break: break-all; /* 単語の途中でも改行する */
+            white-space: normal; /* 折り返しを許可 */
+            overflow: hidden; 
+            text-overflow: ellipsis;
+        }
         #booking-table th { background-color: #007bff; color: white; position: sticky; top: 0; z-index: 10;}
-        #booking-table td { min-width: 120px; }
-        .time-header { font-weight: bold; background-color: #f8f9fa; min-width: 80px;}
+        #booking-table td { min-width: 60px; } /* 最小幅を小さく */
+        .time-header { font-weight: bold; background-color: #f8f9fa; min-width: 60px; font-size: 0.9em;}
         .cell { cursor: pointer; transition: background-color 0.3s; }
         .cell.available { background-color: #e8f5e9; }
         .cell.available:hover { background-color: #c8e6c9; }
         .cell.booked { background-color: #ffebee; color: #b71c1c; font-weight: bold; cursor: not-allowed; }
         #loading { text-align: center; font-size: 1.2em; padding: 20px; display: none; }
         .hidden-col { display: none; }
+
+        /* ポップアップウィンドウ（モーダル）の調整 */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
-        .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 400px; border-radius: 8px; text-align: center; }
-        .modal-content input, .modal-content select, .modal-content button { width: 90%; margin-top: 10px; }
+        .modal-content { background-color: #fefefe; margin: 10% auto; padding: 15px; border: 1px solid #888; width: 90%; max-width: 350px; border-radius: 8px; text-align: center; }
+        .modal-content h2 { font-size: 1.3em; }
+        .modal-content p { font-size: 0.9em; }
+        .modal-content input, .modal-content select, .modal-content button { width: 95%; margin-top: 8px; font-size: 0.9em; }
         .close-button { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+
+        /* スタッフ名の短縮表示のためのCSS */
+        .staff-name-full { display: inline; }
+        .staff-name-short { display: none; }
+
+        /* 画面幅が768px以下の時（タブレットやスマホ）に適用 */
+        @media (max-width: 768px) {
+            .staff-name-full { display: none; } /* フルネームを隠す */
+            .staff-name-short { display: inline; } /* 短縮名を表示 */
+            #booking-table th { padding: 8px 2px; } /* ヘッダーの左右の余白を詰める */
+        }
     </style>
 </head>
 <body>
 
     <div class="container">
         <h1 id="main-title">リハビリテーション予約システム</h1>
-
         <div class="controls">
             <div class="control-group">
                 <label for="date-picker">日付選択:</label>
@@ -48,7 +75,6 @@
             </div>
             <button id="refresh-button">最新の情報に更新</button>
         </div>
-
         <div id="loading">読み込み中...</div>
         <table id="booking-table" style="display:none;">
             <thead>
@@ -96,7 +122,6 @@
         
         let currentBookingData = {};
 
-        // 今日の日付をYYYY-MM-DD形式で取得し、日付ピッカーのデフォルト値に設定
         function setToday() {
             const today = new Date();
             const yyyy = today.getFullYear();
@@ -105,7 +130,6 @@
             datePicker.value = `${yyyy}-${mm}-${dd}`;
         }
 
-        // データの読み込みとテーブル描画
         async function loadAndRenderTable() {
             loadingDiv.style.display = 'block';
             bookingTable.style.display = 'none';
@@ -117,7 +141,6 @@
                 return;
             }
             
-            // メインタイトルを更新
             mainTitle.textContent = `${selectedDate} 予約状況`;
 
             try {
@@ -139,18 +162,22 @@
             }
         }
 
-        // テーブルを描画する
         function renderTable(data) {
             const headers = data[0];
             const timeSlots = data.slice(1);
             const staffList = headers.slice(1);
             
-            if (!staffSelect.options.length) {
+            if (staffSelect.options.length <= 1) { // 初回のみ設定
               staffSelect.innerHTML = `<option value="all">全スタッフ表示</option>` + 
                                       staffList.map(staff => `<option value="${staff}">${staff}</option>`).join('');
             }
 
-            tableHeader.innerHTML = `<th>時間</th>${staffList.map(staff => `<th data-staff-header="${staff}">${staff}</th>`).join('')}`;
+            // 【修正箇所】スタッフ名のフル表示と短縮表示を両方書き出す
+            tableHeader.innerHTML = `<th>${headers[0]}</th>${staffList.map(staff => `<th data-staff-header="${staff}">
+                                        <span class="staff-name-full">${staff}</span>
+                                        <span class="staff-name-short">${staff.replace('先生', '')}</span>
+                                    </th>`).join('')}`;
+
             tableBody.innerHTML = timeSlots.map(row => {
                 const time = row[0];
                 const cells = row.slice(1).map((patient, colIndex) => {
@@ -164,35 +191,45 @@
         
         function filterStaffView() {
             const selectedStaff = staffSelect.value;
-            bookingTable.querySelectorAll('thead th, tbody td').forEach(el => el.classList.remove('hidden-col'));
-            if (selectedStaff !== 'all') {
-                const staffList = Array.from(staffSelect.options).map(opt => opt.value).slice(1);
-                const colIndexToShow = staffList.indexOf(selectedStaff) + 2; // +1 for 'all', +1 for time column
-                bookingTable.querySelectorAll(`th:not(:nth-child(1)):not(:nth-child(${colIndexToShow})), td:not(.time-header):not(:nth-child(${colIndexToShow}))`).forEach(el => el.classList.add('hidden-col'));
-            }
+            const headers = bookingTable.querySelectorAll('thead th');
+            const allCells = bookingTable.querySelectorAll('tbody td');
+            
+            headers.forEach((th, index) => {
+                if(index > 0) {
+                    th.style.display = (selectedStaff === 'all' || th.dataset.staffHeader === selectedStaff) ? '' : 'none';
+                }
+            });
+            allCells.forEach(td => {
+                 if(!td.classList.contains('time-header')) {
+                    td.style.display = (selectedStaff === 'all' || td.dataset.staff === selectedStaff) ? '' : 'none';
+                }
+            });
         }
         
         async function postData(payload) {
             loadingDiv.style.display = 'block';
-            payload.date = datePicker.value; // 送信するデータに日付を追加
+            payload.date = datePicker.value;
 
             try {
                 const response = await fetch(GAS_URL, {
-                    method: 'POST', mode: 'no-cors', cache: 'no-cache',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    method: 'POST',
+                    body: JSON.stringify(payload),
+                    headers: { 'Content-Type': 'application/json' }
                 });
+                const result = await response.json();
+                if (result.status === 'error') throw new Error(result.message);
+                
                 alert('処理が完了しました。最新の情報に更新します。');
+
             } catch (error) {
                 console.error('Fetch Error:', error);
-                alert('通信エラーが発生しました。');
+                alert('エラーが発生しました: ' + error.message);
             } finally {
                 modal.style.display = 'none';
                 await loadAndRenderTable();
             }
         }
 
-        // イベントリスナーの設定
         datePicker.addEventListener('change', loadAndRenderTable);
         staffSelect.addEventListener('change', filterStaffView);
         refreshButton.addEventListener('click', loadAndRenderTable);
@@ -234,7 +271,6 @@
         closeBtn.onclick = () => { modal.style.display = "none"; }
         window.onclick = (event) => { if (event.target == modal) { modal.style.display = "none"; } }
 
-        // 初期化処理
         setToday();
         loadAndRenderTable();
     </script>
