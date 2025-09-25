@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>リハビリテーション予約システム</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1, h2 { text-align: center; color: #0056b3; }
+        .controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        .control-group { display: flex; align-items: center; gap: 10px; }
+        label { font-weight: bold; }
+        select, input, button { padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 16px; }
+        button { background-color: #007bff; color: white; cursor: pointer; border: none; }
+        button:hover { background-color: #0056b3; }
+        #booking-table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; }
+        #booking-table th, #booking-table td { border: 1px solid #ddd; padding: 12px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+        #booking-table th { background-color: #007bff; color: white; position: sticky; top: 0; }
+        #booking-table td { min-width: 120px; }
+        .time-header { font-weight: bold; background-color: #f8f9fa; min-width: 80px;}
+        .cell { cursor: pointer; transition: background-color 0.3s; }
+        .cell.available { background-color: #e8f5e9; }
+        .cell.available:hover { background-color: #c8e6c9; }
+        .cell.booked { background-color: #ffebee; color: #b71c1c; font-weight: bold; cursor: not-allowed; }
+        #loading { text-align: center; font-size: 1.2em; padding: 20px; display: none; }
+        /* ▼▼▼ 追加したスタイル ▼▼▼ */
+        .hidden-col { display: none; }
+        /* ▲▲▲ 追加したスタイル ▲▲▲ */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 400px; border-radius: 8px; text-align: center; }
+        .modal-content input, .modal-content select, .modal-content button { width: 90%; margin-top: 10px; }
+        .close-button { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>リハビリテーション予約システム</h1>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="staff-select">担当者で絞り込み:</label>
+                <select id="staff-select"></select>
+            </div>
+            <button id="refresh-button">最新の情報に更新</button>
+        </div>
+
+        <div id="loading">読み込み中...</div>
+        <table id="booking-table">
+            <thead>
+                <tr id="table-header"></tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+        </table>
+    </div>
+
+    <div id="booking-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2 id="modal-title">予約情報入力</h2>
+            <p id="modal-info"></p>
+            <input type="text" id="patient-name" placeholder="患者さんの名前を入力">
+            <select id="booking-units">
+                <option value="1">1単位 (1枠)</option>
+                <option value="2">2単位 (2枠)</option>
+            </select>
+            <button id="confirm-booking-button">予約確定</button>
+            <button id="cancel-booking-button" style="background-color: #dc3545;">この予約をキャンセル</button>
+        </div>
+    </div>
+
+
+    <script>
+        // ▼▼▼▼▼ ここはあなたのGASウェブアプリURLに書き換えてください ▼▼▼▼▼
+        const GAS_URL = 'ここにあなたのウェブアプリのURLを貼り付け';
+        // ▲▲▲▲▲ ここはあなたのGASウェブアプリURLに書き換えてください ▲▲▲▲▲
+
+        const staffSelect = document.getElementById('staff-select');
+        const tableHeader = document.getElementById('table-header');
+        const tableBody = document.getElementById('table-body');
+        const bookingTable = document.getElementById('booking-table');
+        const loadingDiv = document.getElementById('loading');
+        const refreshButton = document.getElementById('refresh-button');
+        const modal = document.getElementById('booking-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalInfo = document.getElementById('modal-info');
+        const patientNameInput = document.getElementById('patient-name');
+        const bookingUnitsSelect = document.getElementById('booking-units');
+        const confirmBtn = document.getElementById('confirm-booking-button');
+        const cancelBtn = document.getElementById('cancel-booking-button');
+        const closeBtn = document.querySelector('.close-button');
+
+        let currentBookingData = {};
+
+        // データの読み込みとテーブル描画
+        async function loadAndRenderTable() {
+            loadingDiv.style.display = 'block';
+            bookingTable.style.display = 'none';
+            try {
+                const response = await fetch(`${GAS_URL}?action=load`);
+                if (!response.ok) throw new Error('データの読み込みに失敗しました。');
+                
+                const data = await response.json();
+                renderTable(data);
+                filterStaffView(); // 絞り込み状態を維持
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert('エラーが発生しました。' + error.message);
+            } finally {
+                loadingDiv.style.display = 'none';
+                bookingTable.style.display = 'table';
+            }
+        }
+
+        // テーブルを描画する
+        function renderTable(data) {
+            const headers = data[0];
+            const timeSlots = data.slice(1);
+            const staffList = headers.slice(1);
+
+            // スタッフ選択プルダウンを作成 (先頭に「全スタッフ」を追加)
+            staffSelect.innerHTML = `<option value="all">全スタッフ表示</option>` + 
+                                  staffList.map(staff => `<option value="${staff}">${staff}</option>`).join('');
+
+            // テーブルヘッダーを作成
+            tableHeader.innerHTML = `<th>時間</th>${staffList.map(staff => `<th data-staff-header="${staff}">${staff}</th>`).join('')}`;
+
+            // テーブルボディを作成
+            tableBody.innerHTML = timeSlots.map(row => {
+                const time = row[0];
+                const cells = row.slice(1).map((patient, colIndex) => {
+                    const staffName = staffList[colIndex];
+                    const cellClass = patient ? 'booked' : 'available';
+                    return `<td class="cell ${cellClass}" data-staff="${staffName}" data-time="${time}" data-patient="${patient || ''}">${patient}</td>`;
+                }).join('');
+                return `<tr><td class="time-header">${time}</td>${cells}</tr>`;
+            }).join('');
+        }
+        
+        // ▼▼▼▼▼ ここからが追加・変更した機能 ▼▼▼▼▼
+
+        // スタッフ表示を絞り込む関数
+        function filterStaffView() {
+            const selectedStaff = staffSelect.value;
+            
+            // テーブルの全ヘッダーセルを取得
+            const headers = bookingTable.querySelectorAll('thead th');
+            // テーブルの全ボディセルを取得
+            const allCells = bookingTable.querySelectorAll('tbody td');
+
+            headers.forEach((th, index) => {
+                // index 0 は「時間」の列なので常に表示
+                if (index === 0) return;
+
+                const staffName = th.dataset.staffHeader;
+                const shouldShow = (selectedStaff === 'all' || selectedStaff === staffName);
+                th.classList.toggle('hidden-col', !shouldShow);
+            });
+
+            allCells.forEach((td, index) => {
+                // 時間ヘッダーのセルは常に表示
+                if (td.classList.contains('time-header')) return;
+
+                const staffName = td.dataset.staff;
+                const shouldShow = (selectedStaff === 'all' || selectedStaff === staffName);
+                td.classList.toggle('hidden-col', !shouldShow);
+            });
+        }
+
+        // スタッフ選択プルダウンが変更されたら絞り込みを実行
+        staffSelect.addEventListener('change', filterStaffView);
+
+        // ▲▲▲▲▲ ここまでが追加・変更した機能 ▲▲▲▲▲
+
+        // セルクリック時の処理 (変更なし)
+        tableBody.addEventListener('click', (e) => {
+            if (e.target.classList.contains('cell')) {
+                const cell = e.target;
+                const { staff, time, patient } = cell.dataset;
+                currentBookingData = { staff, time };
+                modal.style.display = 'block';
+                if (patient) {
+                    modalTitle.textContent = '予約のキャンセル';
+                    modalInfo.textContent = `${staff} - ${time} (${patient}様)`;
+                    patientNameInput.style.display = 'none'; bookingUnitsSelect.style.display = 'none';
+                    confirmBtn.style.display = 'none'; cancelBtn.style.display = 'block';
+                } else {
+                    modalTitle.textContent = '新規予約';
+                    modalInfo.textContent = `${staff} - ${time}`;
+                    patientNameInput.value = ''; patientNameInput.style.display = 'block';
+                    bookingUnitsSelect.style.display = 'block'; confirmBtn.style.display = 'block';
+                    cancelBtn.style.display = 'none';
+                }
+            }
+        });
+
+        // 予約確定ボタンの処理 (変更なし)
+        confirmBtn.addEventListener('click', async () => {
+            const patientName = patientNameInput.value.trim();
+            if (!patientName) { alert('患者さんの名前を入力してください。'); return; }
+            const payload = { action: 'book', staff: currentBookingData.staff, time: currentBookingData.time, patientName: patientName, units: parseInt(bookingUnitsSelect.value) };
+            await postData(payload);
+        });
+
+        // キャンセルボタンの処理 (変更なし)
+        cancelBtn.addEventListener('click', async () => {
+            if (confirm('本当にこの予約をキャンセルしますか？')) {
+                const payload = { action: 'cancel', staff: currentBookingData.staff, time: currentBookingData.time };
+                await postData(payload);
+            }
+        });
+
+        // データ送信関数 (変更なし、ただしPOST後の再描画で絞り込みを維持するよう修正)
+        async function postData(payload) {
+            loadingDiv.style.display = 'block';
+            try {
+                const response = await fetch(GAS_URL, {
+                    method: 'POST', mode: 'no-cors', cache: 'no-cache',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload), redirect: 'follow'
+                });
+                alert('処理が完了しました。最新の情報に更新します。');
+                await loadAndRenderTable();
+            } catch (error) {
+                console.error('Fetch Error:', error);
+                alert('通信エラーが発生しました。');
+            } finally {
+                modal.style.display = 'none';
+                loadingDiv.style.display = 'none';
+            }
+        }
+
+        // モーダルを閉じる処理 (変更なし)
+        closeBtn.onclick = () => { modal.style.display = "none"; }
+        window.onclick = (event) => { if (event.target == modal) { modal.style.display = "none"; } }
+
+        // 更新ボタン
+        refreshButton.addEventListener('click', loadAndRenderTable);
+
+        // 初期読み込み
+        loadAndRenderTable();
+    </script>
+</body>
+</html>
