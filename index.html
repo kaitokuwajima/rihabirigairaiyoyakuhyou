@@ -100,7 +100,9 @@
     </div>
 
     <script>
-        const GAS_URL = 'https://script.google.com/macros/s/AKfycbwvFHXkax2StP0GGzNLf3zFzxG8NEg9-CHYoRqYc1dB9oTh67d9CE6Io_Ii4sKgp2rr/exec';
+        // ▼▼▼▼▼ ここはあなたのGASウェブアプリURLに書き換えてください ▼▼▼▼▼
+        const GAS_URL = 'ここにあなたのウェブアプリのURLを貼り付け';
+        // ▲▲▲▲▲ ここはあなたのGASウェブアプリURLに書き換えてください ▲▲▲▲▲
 
         // 要素の取得
         const mainTitle = document.getElementById('main-title');
@@ -167,12 +169,11 @@
             const timeSlots = data.slice(1);
             const staffList = headers.slice(1);
             
-            if (staffSelect.options.length <= 1) { // 初回のみ設定
+            if (staffSelect.options.length <= 1) {
               staffSelect.innerHTML = `<option value="all">全スタッフ表示</option>` + 
                                       staffList.map(staff => `<option value="${staff}">${staff}</option>`).join('');
             }
 
-            // 【修正箇所】スタッフ名のフル表示と短縮表示を両方書き出す
             tableHeader.innerHTML = `<th>${headers[0]}</th>${staffList.map(staff => `<th data-staff-header="${staff}">
                                         <span class="staff-name-full">${staff}</span>
                                         <span class="staff-name-short">${staff.replace('先生', '')}</span>
@@ -206,6 +207,7 @@
             });
         }
         
+        // ▼▼▼ 【修正済み】エラー対策を施したデータ送受信の関数 ▼▼▼
         async function postData(payload) {
             loadingDiv.style.display = 'block';
             payload.date = datePicker.value;
@@ -213,11 +215,18 @@
             try {
                 const response = await fetch(GAS_URL, {
                     method: 'POST',
-                    body: JSON.stringify(payload),
-                    headers: { 'Content-Type': 'application/json' }
+                    cache: 'no-cache',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
                 });
+
                 const result = await response.json();
-                if (result.status === 'error') throw new Error(result.message);
+
+                if (result.status === 'error') {
+                    throw new Error(result.message);
+                }
                 
                 alert('処理が完了しました。最新の情報に更新します。');
 
@@ -229,6 +238,7 @@
                 await loadAndRenderTable();
             }
         }
+        // ▲▲▲ 【修正済み】エラー対策を施したデータ送受信の関数 ▲▲▲
 
         datePicker.addEventListener('change', loadAndRenderTable);
         staffSelect.addEventListener('change', filterStaffView);
